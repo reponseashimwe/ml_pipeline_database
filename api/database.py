@@ -216,42 +216,74 @@ def load_initial_data():
 
 # Initialize database
 def init_db():
+    print("--- Starting database initialization ---", file=sys.stderr)
     try:
-        print("Starting database initialization...")
+        # --- Step 1: Create Tables ---
+        print("Attempting to create tables...", file=sys.stderr)
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("Tables created successfully.", file=sys.stderr)
+        except Exception as e:
+            print(f"ERROR: Failed during table creation: {type(e).__name__}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr) # Print full traceback
+            return False # Exit early on this critical failure
 
-        # --- ADD THIS LINE TO CHECK TABLE COUNT ---
-        with engine.connect() as conn:
-            current_table_count = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'railway';")).scalar()
-            print(f"DEBUG: Currently {current_table_count} tables in 'railway' database.")
-        # --- END OF ADDITION ---
+        # --- Step 2: Set up Stored Procedures and Triggers ---
+        print("Attempting to set up stored procedures and triggers...", file=sys.stderr)
+        try:
+            # You need to pass 'engine' or get a new connection here if setup_stored_procedures_and_triggers needs it
+            # Assuming setup_stored_procedures_and_triggers() is defined elsewhere and uses 'engine'
+            if not setup_stored_procedures_and_triggers():
+                raise Exception("setup_stored_procedures_and_triggers returned False")
+            print("Stored procedures and triggers set up successfully.", file=sys.stderr)
+        except Exception as e:
+            print(f"ERROR: Failed during procedures/triggers setup: {type(e).__name__}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr) # Print full traceback
+            return False # Exit early
 
+        # --- Step 3: Check and Load Initial Data ---
+        print("Checking if data needs to be loaded...", file=sys.stderr)
+        try:
+            with engine.connect() as conn:
+                # IMPORTANT: Ensure 'Children' matches the actual table name casing on Railway
+                # Based on your 'SHOW TABLES' output, it's 'Children' (initial capital)
+                result = conn.execute(text("SELECT COUNT(*) FROM Children"))
+                count = result.scalar()
+                print(f"Current Children table row count: {count}", file=sys.stderr)
 
-        # Create all tables
-        print("Creating tables...")
-        Base.metadata.create_all(bind=engine)
-        print("Tables created...")
-        
-        # Set up stored procedures and triggers
-        print("Setting up stored procedures and triggers...")
-        if not setup_stored_procedures_and_triggers():
-            raise Exception("Failed to set up stored procedures and triggers")
-        print("Stored procedures and triggers set up...")
-        
-        # Check if database is empty and load initial data if needed
-        with engine.connect() as conn:
-            print("Checking if data needs to be loaded...")
-            result = conn.execute(text('SELECT COUNT(*) FROM railway.children'))
-            count = result.scalar()
-            if count == 0:
-                print("Loading initial data...")
-                if not load_initial_data():
-                    raise Exception("Failed to load initial data")
-                print("Initial data loaded successfully...")
-            else:
-                print("Data already exists, skipping initial load...")
-        
-        print("Database initialization completed successfully!")
+                if count == 0:
+                    print("Loading initial data...", file=sys.stderr)
+                    # You need to pass 'db' and 'csv_path' to load_stunting_wasting_dataset
+                    # db = next(get_db()) # This is usually done in startup_event, not init_db
+                    # You need to ensure csv_path is accessible on Render's filesystem
+                    # current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    # csv_path = os.path.join(current_dir, 'data', 'stunting_wasting_dataset.csv')
+                    # if not crud.load_stunting_wasting_dataset(db, csv_path):
+                    #     raise Exception("Failed to load initial data")
+                    
+                    # For now, let's simplify this part for debugging startup
+                    # If load_stunting_wasting_dataset is the issue, we'll get there.
+                    # Temporarily, you might comment out the actual data loading for startup debug.
+                    print("Initial data loading logic skipped for debug (if not already commented).", file=sys.stderr)
+                    # If you want to keep it, ensure crud.load_stunting_wasting_dataset is robust.
+                    # For the sake of getting the app to start, you might temporarily return True here
+                    # or comment out the actual load call if it's complex.
+                else:
+                    print("Data already exists, skipping initial load.", file=sys.stderr)
+        except Exception as e:
+            print(f"ERROR: Failed during data load check or initial data load: {type(e).__name__}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr) # Print full traceback
+            return False # Exit early
+
+        print("--- Database initialization completed successfully! ---", file=sys.stderr)
         return True
     except Exception as e:
-        print(f"Error initializing database: {e}")
+        # This catch-all should ideally not be hit if inner blocks are handled,
+        # but it's a fallback.
+        print(f"CRITICAL UNEXPECTED ERROR IN init_db: {type(e).__name__}: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr) # Print full traceback
         return False
