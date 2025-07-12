@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy<2.0.0
+pymysql
+python-dotenv
+pydantic
+python-multipart
+cryptography
+scikit-learn
+pandas
+numpy
+joblib
+dotenv
