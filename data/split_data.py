@@ -1,8 +1,10 @@
 import pandas as pd
-import os
 
 # Read the original CSV
 df = pd.read_csv('stunting_wasting_dataset.csv')
+
+# Take only the first 500 rows
+df = df.head(500)
 
 # Map stunting and wasting to 1/0
 stunting_map = {'Tall': 0, 'Normal': 0, 'Stunted': 1, 'Severely Stunted': 1}
@@ -17,7 +19,7 @@ children.rename(columns={'Jenis Kelamin': 'gender'}, inplace=True)
 children.to_csv('children.csv', index=False)
 
 # Add a child_id column (auto-increment for this example)
-children['child_id'] = ['C{:04d}'.format(i+1) for i in range(len(children))]
+children['child_id'] = [i + 1 for i in range(len(children))]
 df['child_id'] = children['child_id']
 
 # Create Measurements table CSV
