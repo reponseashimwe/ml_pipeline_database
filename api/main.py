@@ -199,3 +199,104 @@ def delete_measurement(
             status_code=500,
             detail=f"An error occurred while deleting the measurement: {str(e)}"
         )
+
+@app.get("/diagnosis/latest", response_model=schemas.DiagnosisResponse, tags=["Diagnosis"], summary="Get diagnosis from latest measurement")
+def get_latest_diagnosis(db: Session = Depends(get_db)):
+    try:
+        measurement = crud.get_latest_measurement(db)
+        if not measurement:
+            raise HTTPException(
+                status_code=404,
+                detail="No measurements found in the system"
+            )
+        
+        diagnosis = crud.perform_diagnosis(
+            age_months=measurement.age_months,
+            body_length_cm=measurement.body_length_cm,
+            body_weight_kg=measurement.body_weight_kg
+        )
+        
+        # Add measurement info
+        diagnosis["measurement_id"] = measurement.measurement_id
+        diagnosis["child_id"] = measurement.child_id
+        
+        return diagnosis
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while getting the diagnosis: {str(e)}"
+        )
+
+@app.get("/diagnosis/child/{child_id}", response_model=schemas.DiagnosisResponse, tags=["Diagnosis"], summary="Get diagnosis from child's latest measurement")
+def get_child_latest_diagnosis(
+    child_id: str = Path(..., description="The ID of the child to diagnose"),
+    db: Session = Depends(get_db)
+):
+    try:
+        # First check if child exists
+        child = crud.get_child(db, child_id)
+        if not child:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Child with ID {child_id} not found"
+            )
+        
+        measurement = crud.get_latest_measurement_by_child(db, child_id)
+        if not measurement:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No measurements found for child {child_id}"
+            )
+        
+        diagnosis = crud.perform_diagnosis(
+            age_months=measurement.age_months,
+            body_length_cm=measurement.body_length_cm,
+            body_weight_kg=measurement.body_weight_kg
+        )
+        
+        # Add measurement info
+        diagnosis["measurement_id"] = measurement.measurement_id
+        diagnosis["child_id"] = measurement.child_id
+        
+        return diagnosis
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while getting the diagnosis: {str(e)}"
+        )
+
+@app.get("/diagnosis/measurement/{measurement_id}", response_model=schemas.DiagnosisResponse, tags=["Diagnosis"], summary="Get diagnosis for a specific measurement")
+def get_measurement_diagnosis(
+    measurement_id: int = Path(..., description="The ID of the measurement to diagnose"),
+    db: Session = Depends(get_db)
+):
+    try:
+        measurement = crud.get_measurement_by_id(db, measurement_id)
+        if not measurement:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Measurement with ID {measurement_id} not found"
+            )
+        
+        diagnosis = crud.perform_diagnosis(
+            age_months=measurement.age_months,
+            body_length_cm=measurement.body_length_cm,
+            body_weight_kg=measurement.body_weight_kg
+        )
+        
+        # Add measurement info
+        diagnosis["measurement_id"] = measurement.measurement_id
+        diagnosis["child_id"] = measurement.child_id
+        
+        return diagnosis
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while getting the diagnosis: {str(e)}"
+        )

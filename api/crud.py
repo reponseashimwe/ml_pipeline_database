@@ -50,26 +50,6 @@ def create_child_with_measurement(db: Session, child_data: schemas.ChildCreate) 
         db.add(db_measurement)
         db.flush()  # Get measurement ID
         
-        # Calculate and create diagnosis
-        stunting_status, wasting_status = calculate_diagnosis(
-            age_months=measurement_data.age_months,
-            body_length_cm=measurement_data.body_length_cm,
-            body_weight_kg=measurement_data.body_weight_kg
-        )
-        
-        db_diagnosis = models.Diagnosis(
-            measurement_id=db_measurement.measurement_id,
-            stunting_status=stunting_status,
-            wasting_status=wasting_status,
-            diagnosis_date=date.today()
-        )
-        
-        db.add(db_diagnosis)
-        
-        # Update child's status
-        db_child.current_stunting_status = stunting_status
-        db_child.current_wasting_status = wasting_status
-        
         db.commit()
         db.refresh(db_child)
         return db_child
@@ -164,33 +144,6 @@ def create_measurement_with_diagnosis(db: Session, child_id: str, measurement_da
         )
         
         db.add(db_measurement)
-        db.flush()  # Get the measurement_id without committing
-        
-        # Calculate diagnosis based on measurements
-        stunting_status, wasting_status = calculate_diagnosis(
-            age_months=measurement_data.age_months,
-            body_length_cm=measurement_data.body_length_cm,
-            body_weight_kg=measurement_data.body_weight_kg
-        )
-        
-        # Create diagnosis record
-        db_diagnosis = models.Diagnosis(
-            measurement_id=db_measurement.measurement_id,
-            stunting_status=stunting_status,
-            wasting_status=wasting_status,
-            diagnosis_date=date.today()
-        )
-        
-        db.add(db_diagnosis)
-        db.flush()  # Ensure diagnosis is created
-        
-        # Update child's current status
-        child = db.query(models.Children).filter(models.Children.child_id == child_id).first()
-        if not child:
-            raise HTTPException(status_code=404, detail=f"Child with ID {child_id} not found")
-            
-        child.current_stunting_status = stunting_status
-        child.current_wasting_status = wasting_status
         
         db.commit()
         db.refresh(db_measurement)
@@ -334,6 +287,60 @@ def calculate_diagnosis(age_months: int, body_length_cm: float, body_weight_kg: 
     # TODO: Implement actual diagnosis calculation based on WHO standards
     # For now, return placeholder values
     return "Normal", "Normal weight"
+
+def get_latest_measurement(db: Session) -> Optional[models.Measurements]:
+    return db.query(models.Measurements)\
+        .options(joinedload(models.Measurements.diagnosis))\
+        .order_by(desc(models.Measurements.created_at))\
+        .first()
+
+def get_latest_measurement_by_child(db: Session, child_id: str) -> Optional[models.Measurements]:
+    return db.query(models.Measurements)\
+        .options(joinedload(models.Measurements.diagnosis))\
+        .filter(models.Measurements.child_id == child_id)\
+        .order_by(desc(models.Measurements.created_at))\
+        .first()
+
+def get_measurement_by_id(db: Session, measurement_id: int) -> Optional[models.Measurements]:
+    return db.query(models.Measurements)\
+        .options(joinedload(models.Measurements.diagnosis))\
+        .filter(models.Measurements.measurement_id == measurement_id)\
+        .first()
+
+def perform_diagnosis(age_months: int, body_length_cm: float, body_weight_kg: float) -> dict:
+    """
+    Perform diagnosis calculation based on WHO standards.
+    For now, returns placeholder values based on simple thresholds.
+    """
+    # Placeholder logic - should be replaced with actual WHO standards
+    # Stunting (height-for-age)
+    if body_length_cm < 65:  # Example threshold
+        stunting_status = schemas.StuntingStatus.SEVERELY_STUNTED
+    elif body_length_cm < 75:
+        stunting_status = schemas.StuntingStatus.STUNTED
+    elif body_length_cm > 100:
+        stunting_status = schemas.StuntingStatus.TALL
+    else:
+        stunting_status = schemas.StuntingStatus.NORMAL
+
+    # Wasting (weight-for-height)
+    if body_weight_kg < 6:  # Example threshold
+        wasting_status = schemas.WastingStatus.SEVERELY_UNDERWEIGHT
+    elif body_weight_kg < 8:
+        wasting_status = schemas.WastingStatus.UNDERWEIGHT
+    elif body_weight_kg > 15:
+        wasting_status = schemas.WastingStatus.RISK_OF_OVERWEIGHT
+    else:
+        wasting_status = schemas.WastingStatus.NORMAL
+
+    return {
+        "stunting_status": stunting_status,
+        "wasting_status": wasting_status,
+        "age_months": age_months,
+        "body_length_cm": body_length_cm,
+        "body_weight_kg": body_weight_kg,
+        "diagnosis_date": date.today()
+    }
 
 # Initial data loader for stunting_wasting_dataset.csv
 def load_stunting_wasting_dataset(db: Session, csv_path: str):

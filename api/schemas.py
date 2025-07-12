@@ -100,4 +100,17 @@ class ChildForm(BaseModel):
     gender: str = Field(..., description="Gender selection")
     age_months: int = Field(..., description="Age in months")
     body_length_cm: float = Field(..., description="Body length in cm")
-    body_weight_kg: float = Field(..., description="Body weight in kg") 
+    body_weight_kg: float = Field(..., description="Body weight in kg")
+
+class DiagnosisResponse(BaseModel):
+    stunting_status: StuntingStatus
+    wasting_status: WastingStatus
+    age_months: int = Field(..., ge=0, le=60)
+    body_length_cm: float = Field(..., ge=30, le=120)
+    body_weight_kg: float = Field(..., ge=1, le=30)
+    diagnosis_date: date
+    measurement_id: Optional[int] = None
+    child_id: Optional[str] = None
+
+    class Config:
+        orm_mode = True 

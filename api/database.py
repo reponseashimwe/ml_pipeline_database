@@ -1,11 +1,14 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import pymysql
 import pandas as pd
 import os
 from datetime import datetime
 from enum import Enum
+import dotenv
+
+# Load environment variables
+dotenv.load_dotenv()
 
 # Status Enums
 class StuntingStatus(str, Enum):
@@ -25,7 +28,9 @@ class Gender(str, Enum):
     FEMALE = "Perempuan"
 
 # Database connection configuration
-DATABASE_URL = "mysql+pymysql://root:00990099@localhost:3306/malnutrition"
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
 
 # Create SQLAlchemy engine
 engine = create_engine(
@@ -49,6 +54,11 @@ def get_db():
     finally:
         db.close()
 
+def load_sql_file(filepath):
+    """Helper function to read SQL file content"""
+    with open(filepath, 'r') as f:
+        return f.read()
+
 def setup_stored_procedures_and_triggers():
     try:
         with engine.connect() as conn:
@@ -65,78 +75,38 @@ def setup_stored_procedures_and_triggers():
                 for stmt in drop_statements:
                     conn.execute(text(stmt))
                 
-                # Create stored procedure for ID generation
-                stored_proc = """
-                CREATE PROCEDURE GenerateChildUniqueID(OUT generated_id VARCHAR(24))
-                BEGIN
-                    SET generated_id := CONCAT(
-                        DATE_FORMAT(NOW(), '%Y%m%d-%H%i%s-'),
-                        UPPER(SUBSTRING(MD5(RAND()), 1, 4))
-                    );
-                END
-                """
-                conn.execute(text(stored_proc))
+                # Get SQL directory path
+                current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                sql_dir = os.path.join(current_dir, 'sql')
                 
-                # Create procedure for gender text conversion
-                gender_proc = """
-                CREATE PROCEDURE SetGenderText(IN gender_value VARCHAR(10), OUT gender_text_value VARCHAR(20))
-                BEGIN
-                    IF gender_value = 'Laki-laki' THEN
-                        SET gender_text_value := 'Male';
-                    ELSEIF gender_value = 'Perempuan' THEN
-                        SET gender_text_value := 'Female';
-                    ELSE
-                        SET gender_text_value := 'Unknown';
-                    END IF;
-                END
-                """
-                conn.execute(text(gender_proc))
+                # Load and execute stored procedures
+                procedures = [
+                    '01-procedure-generate_child_id.sql',
+                    '02-procedure-set_gender_text.sql'
+                ]
+                for proc in procedures:
+                    sql = load_sql_file(os.path.join(sql_dir, proc))
+                    conn.execute(text(sql))
+                    print(f"Created procedure from {proc}")
                 
-                # Create before insert trigger for children
-                before_insert_trigger = """
-                CREATE TRIGGER before_insert_children
-                BEFORE INSERT ON Children
-                FOR EACH ROW
-                BEGIN
-                    DECLARE gender_text_val VARCHAR(20);
-                    
-                    -- Generate child ID if not provided
-                    IF NEW.child_id IS NULL OR NEW.child_id = '' THEN
-                        CALL GenerateChildUniqueID(@new_id);
-                        SET NEW.child_id = @new_id;
-                    END IF;
-                    
-                    -- Set gender text
-                    CALL SetGenderText(NEW.gender, gender_text_val);
-                    SET NEW.gender_text = gender_text_val;
-                END
-                """
-                conn.execute(text(before_insert_trigger))
-                
-                # Create before update trigger for children
-                before_update_trigger = """
-                CREATE TRIGGER before_update_children
-                BEFORE UPDATE ON Children
-                FOR EACH ROW
-                BEGIN
-                    DECLARE gender_text_val VARCHAR(20);
-                    
-                    -- Update gender text if gender changed
-                    IF NEW.gender != OLD.gender THEN
-                        CALL SetGenderText(NEW.gender, gender_text_val);
-                        SET NEW.gender_text = gender_text_val;
-                    END IF;
-                END
-                """
-                conn.execute(text(before_update_trigger))
+                # Load and execute triggers
+                triggers = [
+                    '03-trigger-before_insert_children.sql',
+                    '04-trigger-before_update_children.sql'
+                ]
+                for trig in triggers:
+                    sql = load_sql_file(os.path.join(sql_dir, trig))
+                    conn.execute(text(sql))
+                    print(f"Created trigger from {trig}")
                 
                 trans.commit()
                 return True
             except Exception as e:
                 trans.rollback()
-                raise e
+                print(f"Error setting up stored procedures and triggers: {e}")
+                return False
     except Exception as e:
-        print(f"Error setting up stored procedures and triggers: {e}")
+        print(f"Error connecting to database: {e}")
         return False
 
 def load_initial_data():
@@ -150,7 +120,7 @@ def load_initial_data():
         
         with engine.connect() as conn:
             # Check if we have any existing children
-            result = conn.execute(text("SELECT COUNT(*) FROM children")).scalar()
+            result = conn.execute(text('SELECT COUNT(*) FROM children')).scalar()
             if result > 0:
                 print("Children table already has data, skipping initial load")
                 return True
@@ -164,6 +134,7 @@ def load_initial_data():
             # Process in batches of 100
             batch_size = 100
             total_processed = 0
+            current_time = datetime.utcnow()
             
             for i in range(0, len(df), batch_size):
                 batch = df.iloc[i:i+batch_size]
@@ -175,11 +146,16 @@ def load_initial_data():
                         try:
                             # Insert child record
                             child_stmt = text("""
-                                INSERT INTO children (gender, current_stunting_status, current_wasting_status)
-                                VALUES (:gender, NULL, NULL)
+                                INSERT INTO children 
+                                (gender, current_stunting_status, current_wasting_status, created_at, updated_at)
+                                VALUES (:gender, :stunting, :wasting, :created_at, :updated_at)
                             """)
                             batch_conn.execute(child_stmt, {
-                                'gender': row['gender']
+                                'gender': row['Jenis Kelamin'],
+                                'stunting': row['Stunting'],
+                                'wasting': row['Wasting'],
+                                'created_at': current_time,
+                                'updated_at': current_time
                             })
                             
                             # Get the generated child_id
@@ -187,17 +163,20 @@ def load_initial_data():
                             child_id = batch_conn.execute(child_id_stmt).scalar()
                             
                             # Insert measurement record
+                            measurement_date = datetime.now().date()
                             meas_stmt = text("""
                                 INSERT INTO measurements 
-                                (child_id, age_months, body_length_cm, body_weight_kg, measurement_date)
-                                VALUES (:child_id, :age, :length, :weight, :date)
+                                (child_id, age_months, body_length_cm, body_weight_kg, measurement_date, created_at, updated_at)
+                                VALUES (:child_id, :age, :length, :weight, :meas_date, :created_at, :updated_at)
                             """)
                             batch_conn.execute(meas_stmt, {
                                 'child_id': child_id,
-                                'age': row['age_months'],
-                                'length': row['body_length_cm'],
-                                'weight': row['body_weight_kg'],
-                                'date': datetime.now().date()
+                                'age': row['Umur (bulan)'],
+                                'length': row['Tinggi Badan (cm)'],
+                                'weight': row['Berat Badan (kg)'],
+                                'meas_date': measurement_date,
+                                'created_at': current_time,
+                                'updated_at': current_time
                             })
                             
                             # Get the measurement_id
@@ -207,20 +186,23 @@ def load_initial_data():
                             # Insert diagnosis record
                             diag_stmt = text("""
                                 INSERT INTO diagnosis 
-                                (measurement_id, stunting_status, wasting_status, diagnosis_date)
-                                VALUES (:measurement_id, :stunting, :wasting, :date)
+                                (measurement_id, stunting_status, wasting_status, diagnosis_date, created_at, updated_at)
+                                VALUES (:measurement_id, :stunting, :wasting, :diag_date, :created_at, :updated_at)
                             """)
                             batch_conn.execute(diag_stmt, {
                                 'measurement_id': meas_id,
-                                'stunting': row['stunting_status'],
-                                'wasting': row['wasting_status'],
-                                'date': datetime.now().date()
+                                'stunting': row['Stunting'],
+                                'wasting': row['Wasting'],
+                                'diag_date': measurement_date,
+                                'created_at': current_time,
+                                'updated_at': current_time
                             })
                             
                             total_processed += 1
+                            print(f"Successfully processed record {total_processed}")
                             
                         except Exception as e:
-                            print(f"Error processing record {row.name}: {e}")
+                            print(f"Error processing record {row.name}: {str(e)}")
                             continue
                 
                 print(f"Batch {batch_num} completed. Total processed: {total_processed}")
@@ -236,23 +218,14 @@ def load_initial_data():
 def init_db():
     try:
         print("Starting database initialization...")
-        # Create database if it doesn't exist
-        engine_root = create_engine("mysql+pymysql://root:00990099@localhost:3306")
-        print("Created root engine...")
-        
-        with engine_root.connect() as conn:
-            print("Connected to MySQL...")
-            conn.execute(text("CREATE DATABASE IF NOT EXISTS malnutrition;"))
-            conn.execute(text("USE malnutrition;"))
-            print("Created and selected database...")
-            trans = conn.begin()
-            try:
-                trans.commit()
-                print("Initial transaction committed...")
-            except:
-                trans.rollback()
-                raise
-            
+
+        # --- ADD THIS LINE TO CHECK TABLE COUNT ---
+        with engine.connect() as conn:
+            current_table_count = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'railway';")).scalar()
+            print(f"DEBUG: Currently {current_table_count} tables in 'railway' database.")
+        # --- END OF ADDITION ---
+
+
         # Create all tables
         print("Creating tables...")
         Base.metadata.create_all(bind=engine)
@@ -267,7 +240,7 @@ def init_db():
         # Check if database is empty and load initial data if needed
         with engine.connect() as conn:
             print("Checking if data needs to be loaded...")
-            result = conn.execute(text("SELECT COUNT(*) FROM children"))
+            result = conn.execute(text('SELECT COUNT(*) FROM railway.children'))
             count = result.scalar()
             if count == 0:
                 print("Loading initial data...")
