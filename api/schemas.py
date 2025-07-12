@@ -1,77 +1,103 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 
 class Gender(str, Enum):
-    MALE = "Laki-laki"      # Indonesian for Male
-    FEMALE = "Perempuan"    # Indonesian for Female
+    MALE = "Laki-laki"
+    FEMALE = "Perempuan"
 
-class StuntingStatus(int, Enum):
-    SEVERELY_STUNTED = -2   # Severely stunted growth
-    STUNTED = -1           # Stunted growth
-    NORMAL = 0             # Normal growth
-    TALL = 1              # Above normal height
+    @property
+    def display_value(self) -> str:
+        return "Male" if self == Gender.MALE else "Female"
 
-class WastingStatus(int, Enum):
-    SEVERELY_WASTED = -2    # Severely underweight
-    WASTED = -1            # Underweight
-    NORMAL = 0             # Normal weight
-    RISK_OF_OVERWEIGHT = 1  # Risk of being overweight
-    OVERWEIGHT = 2         # Overweight
+class StuntingStatus(str, Enum):
+    SEVERELY_STUNTED = "Severely Stunted"
+    STUNTED = "Stunted"
+    NORMAL = "Normal"
+    TALL = "Tall"
 
-# Children Schemas
-class ChildBase(BaseModel):
-    gender: Gender = Field(..., description="Gender of the child (Laki-laki=Male/Perempuan=Female)")
-    current_stunting_status: Optional[StuntingStatus] = Field(None, description="Current stunting status (-2=Severely stunted, -1=Stunted, 0=Normal, 1=Tall)")
-    current_wasting_status: Optional[WastingStatus] = Field(None, description="Current wasting status (-2=Severely wasted, -1=Wasted, 0=Normal, 1=Risk of overweight, 2=Overweight)")
+class WastingStatus(str, Enum):
+    SEVERELY_UNDERWEIGHT = "Severely Underweight"
+    UNDERWEIGHT = "Underweight"
+    NORMAL = "Normal weight"
+    RISK_OF_OVERWEIGHT = "Risk of Overweight"
 
-class ChildCreate(ChildBase):
-    child_id: Optional[str] = Field(None, description="Child ID (will be auto-generated if not provided)")
+class Message(BaseModel):
+    detail: str
 
-class Child(ChildBase):
-    child_id: str = Field(..., description="Unique identifier for the child")
+# Diagnosis Schema
+class DiagnosisBase(BaseModel):
+    stunting_status: StuntingStatus
+    wasting_status: WastingStatus
+    diagnosis_date: date = Field(default_factory=date.today)
+
+class DiagnosisCreate(DiagnosisBase):
+    pass
+
+class Diagnosis(DiagnosisBase):
+    diagnosis_id: int
+    measurement_id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-# Measurements Schemas
+# Measurement Schemas
 class MeasurementBase(BaseModel):
     age_months: int = Field(..., ge=0, le=60, description="Age in months (0-60)")
     body_length_cm: float = Field(..., ge=30, le=120, description="Body length in centimeters")
     body_weight_kg: float = Field(..., ge=1, le=30, description="Body weight in kilograms")
 
 class MeasurementCreate(MeasurementBase):
-    child_id: str = Field(..., description="ID of the child being measured")
+    pass
+
+class MeasurementUpdate(MeasurementBase):
+    pass
 
 class Measurement(MeasurementBase):
-    measurement_id: int = Field(..., description="Unique identifier for the measurement")
-    child_id: str = Field(..., description="ID of the child being measured")
-    measurement_date: date = Field(..., description="Date of measurement")
+    measurement_id: int
+    child_id: str
+    measurement_date: date
+    created_at: datetime
+    updated_at: datetime
+    diagnosis: Optional[Diagnosis] = None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-# Diagnosis Schemas
-class DiagnosisBase(BaseModel):
-    stunting_status: StuntingStatus = Field(..., description="Stunting status diagnosis")
-    wasting_status: WastingStatus = Field(..., description="Wasting status diagnosis")
+# Children Schemas
+class ChildBase(BaseModel):
+    gender: Gender = Field(..., description="Gender of the child (Male/Female)")
 
-class DiagnosisCreate(DiagnosisBase):
-    measurement_id: int = Field(..., description="ID of the measurement being diagnosed")
+class ChildCreate(ChildBase):
+    initial_measurement: MeasurementCreate = Field(..., description="Initial measurement for the child")
 
-class Diagnosis(DiagnosisBase):
-    diagnosis_id: int = Field(..., description="Unique identifier for the diagnosis")
-    measurement_id: int = Field(..., description="ID of the measurement being diagnosed")
-    diagnosis_date: date = Field(..., description="Date of diagnosis")
+class Child(ChildBase):
+    child_id: str
+    gender_text: str
+    current_stunting_status: Optional[StuntingStatus]
+    current_wasting_status: Optional[WastingStatus]
+    created_at: datetime
+    updated_at: datetime
+    measurements: List[Measurement] = []
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-# Response Models
-class Message(BaseModel):
-    detail: str
+class ChildrenResponse(BaseModel):
+    total: int = Field(..., description="Total number of records")
+    limit: int = Field(..., description="Number of records per page")
+    offset: int = Field(..., description="Number of records skipped")
+    data: List[Child]
 
-class DatabaseStatus(BaseModel):
-    status: str
-    timestamp: str 
+    class Config:
+        orm_mode = True
+
+# Form schemas for HTML forms
+class ChildForm(BaseModel):
+    gender: str = Field(..., description="Gender selection")
+    age_months: int = Field(..., description="Age in months")
+    body_length_cm: float = Field(..., description="Body length in cm")
+    body_weight_kg: float = Field(..., description="Body weight in kg") 

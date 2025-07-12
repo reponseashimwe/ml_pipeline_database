@@ -1,4 +1,4 @@
-USE malnutrition_db;
+USE malnutrition;
 
 LOAD DATA LOCAL INFILE '/home/omar/ALU/student_performance_db_project/data/children.csv'
 INTO TABLE Children

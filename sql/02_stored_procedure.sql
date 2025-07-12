@@ -1,6 +1,6 @@
--- Stored Procedures for malnutrition_db
+-- Stored Procedures for malnutrition
 
-USE malnutrition_db;
+USE malnutrition;
 
 DELIMITER $$
 
