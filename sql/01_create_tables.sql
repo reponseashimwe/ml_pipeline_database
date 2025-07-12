@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS Children;
 
 -- 1. Children Table
 CREATE TABLE IF NOT EXISTS Children (
-    child_id VARCHAR(10) PRIMARY KEY, -- Format: YYYYMMXXXX
+    child_id VARCHAR(24) PRIMARY KEY, -- Format: YYYYMMDD-HHMMSS-XXXX
     gender VARCHAR(10) NOT NULL,
     current_stunting_status TINYINT DEFAULT NULL,
     current_wasting_status TINYINT DEFAULT NULL
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS Children (
 -- 2. Measurements Table
 CREATE TABLE IF NOT EXISTS Measurements (
     measurement_id INT AUTO_INCREMENT PRIMARY KEY,
-    child_id VARCHAR(10) NOT NULL,
+    child_id VARCHAR(24) NOT NULL,
     age_months INT NOT NULL,
     body_length_cm DECIMAL(5,2) NOT NULL,
     body_weight_kg DECIMAL(5,2) NOT NULL,
