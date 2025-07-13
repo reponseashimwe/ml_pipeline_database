@@ -213,7 +213,8 @@ def get_latest_diagnosis(db: Session = Depends(get_db)):
         diagnosis = crud.perform_diagnosis(
             age_months=measurement.age_months,
             body_length_cm=measurement.body_length_cm,
-            body_weight_kg=measurement.body_weight_kg
+            body_weight_kg=measurement.body_weight_kg,
+            gender=measurement.child.gender
         )
         
         # Add measurement info
@@ -253,7 +254,8 @@ def get_child_latest_diagnosis(
         diagnosis = crud.perform_diagnosis(
             age_months=measurement.age_months,
             body_length_cm=measurement.body_length_cm,
-            body_weight_kg=measurement.body_weight_kg
+            body_weight_kg=measurement.body_weight_kg,
+            gender=measurement.child.gender
         )
         
         # Add measurement info
@@ -285,7 +287,8 @@ def get_measurement_diagnosis(
         diagnosis = crud.perform_diagnosis(
             age_months=measurement.age_months,
             body_length_cm=measurement.body_length_cm,
-            body_weight_kg=measurement.body_weight_kg
+            body_weight_kg=measurement.body_weight_kg,
+            gender=measurement.child.gender
         )
         
         # Add measurement info
@@ -299,4 +302,41 @@ def get_measurement_diagnosis(
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred while getting the diagnosis: {str(e)}"
+        )
+
+@app.post("/diagnosis/predict", response_model=schemas.PredictionResponse, tags=["Diagnosis"], summary="Get diagnosis prediction from direct input")
+def predict_diagnosis(
+    gender: schemas.Gender = Form(..., description="Gender of the child (Laki-laki/Perempuan)"),
+    age_months: int = Form(..., ge=0, le=60, description="Age in months (0-60)"),
+    body_length_cm: float = Form(..., ge=30, le=120, description="Body length/height in centimeters"),
+    body_weight_kg: float = Form(..., ge=1, le=30, description="Body weight in kilograms")
+):
+    """
+    Get stunting prediction from direct input parameters without saving to database.
+    
+    Returns only the stunting prediction without wasting status.
+    """
+    try:
+        diagnosis = crud.perform_diagnosis(
+            age_months=age_months,
+            body_length_cm=body_length_cm,
+            body_weight_kg=body_weight_kg,
+            gender=gender
+        )
+        
+        # Return only the stunting prediction
+        return {
+            "stunting_status": diagnosis["stunting_status"],
+            "age_months": age_months,
+            "body_length_cm": body_length_cm,
+            "body_weight_kg": body_weight_kg,
+            "diagnosis_date": date.today().isoformat()
+        }
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to perform diagnosis: {str(e)}"
         )
