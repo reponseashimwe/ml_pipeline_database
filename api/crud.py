@@ -8,6 +8,18 @@ from datetime import date, datetime
 import pandas as pd
 import os
 from fastapi import HTTPException
+import sys
+from pathlib import Path
+
+# Add the parent directory to Python path to find the ml module
+sys.path.append(str(Path(__file__).parent.parent))
+
+try:
+    from ml.predict import predict_stunting_status
+except ImportError as e:
+    print(f"Warning: ML module not found - {e}")
+    print("Make sure the ml directory is in the Python path")
+    predict_stunting_status = None
 
 # Children CRUD operations
 def create_child_with_measurement(db: Session, child_data: schemas.ChildCreate) -> models.Children:
@@ -307,40 +319,33 @@ def get_measurement_by_id(db: Session, measurement_id: int) -> Optional[models.M
         .filter(models.Measurements.measurement_id == measurement_id)\
         .first()
 
-def perform_diagnosis(age_months: int, body_length_cm: float, body_weight_kg: float) -> dict:
+def perform_diagnosis(age_months: int, body_length_cm: float, body_weight_kg: float, gender: str) -> dict:
     """
-    Perform diagnosis calculation based on WHO standards.
-    For now, returns placeholder values based on simple thresholds.
+    Perform diagnosis using the trained ML model
     """
-    # Placeholder logic - should be replaced with actual WHO standards
-    # Stunting (height-for-age)
-    if body_length_cm < 65:  # Example threshold
-        stunting_status = schemas.StuntingStatus.SEVERELY_STUNTED
-    elif body_length_cm < 75:
-        stunting_status = schemas.StuntingStatus.STUNTED
-    elif body_length_cm > 100:
-        stunting_status = schemas.StuntingStatus.TALL
-    else:
-        stunting_status = schemas.StuntingStatus.NORMAL
+    try:
+        if predict_stunting_status is None:
+            raise ImportError("ML module not properly loaded")
+        
+        # Get stunting prediction from ML model
+        stunting_status = predict_stunting_status(
+            age_months=age_months,
+            body_length_cm=body_length_cm,
+            body_weight_kg=body_weight_kg,
+            gender=gender
+        )
+        
+        # Return diagnosis results
+        return {
+            "stunting_status": stunting_status,
+            "age_months": age_months,
+            "body_length_cm": body_length_cm,
+            "body_weight_kg": body_weight_kg,
+            "diagnosis_date": date.today().isoformat()
+        }
 
-    # Wasting (weight-for-height)
-    if body_weight_kg < 6:  # Example threshold
-        wasting_status = schemas.WastingStatus.SEVERELY_UNDERWEIGHT
-    elif body_weight_kg < 8:
-        wasting_status = schemas.WastingStatus.UNDERWEIGHT
-    elif body_weight_kg > 15:
-        wasting_status = schemas.WastingStatus.RISK_OF_OVERWEIGHT
-    else:
-        wasting_status = schemas.WastingStatus.NORMAL
-
-    return {
-        "stunting_status": stunting_status,
-        "wasting_status": wasting_status,
-        "age_months": age_months,
-        "body_length_cm": body_length_cm,
-        "body_weight_kg": body_weight_kg,
-        "diagnosis_date": date.today()
-    }
+    except Exception as e:
+        raise Exception(f"Failed to perform diagnosis: {str(e)}")
 
 # Initial data loader for stunting_wasting_dataset.csv
 def load_stunting_wasting_dataset(db: Session, csv_path: str):

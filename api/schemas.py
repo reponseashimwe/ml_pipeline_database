@@ -104,13 +104,23 @@ class ChildForm(BaseModel):
 
 class DiagnosisResponse(BaseModel):
     stunting_status: StuntingStatus
-    wasting_status: WastingStatus
     age_months: int = Field(..., ge=0, le=60)
     body_length_cm: float = Field(..., ge=30, le=120)
     body_weight_kg: float = Field(..., ge=1, le=30)
     diagnosis_date: date
     measurement_id: Optional[int] = None
     child_id: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class PredictionResponse(BaseModel):
+    """Response model for direct prediction endpoint"""
+    stunting_status: StuntingStatus
+    age_months: int = Field(..., ge=0, le=60)
+    body_length_cm: float = Field(..., ge=30, le=120)
+    body_weight_kg: float = Field(..., ge=1, le=30)
+    diagnosis_date: date
 
     class Config:
         orm_mode = True 
