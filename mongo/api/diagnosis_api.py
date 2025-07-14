@@ -26,7 +26,16 @@ def create_diagnosis(diagnosis: Diagnosis):
 @app.get("/mongo/diagnosis/", response_model=List[Diagnosis])
 def get_diagnoses():
     diagnoses = list(db.diagnosis.find({}, {"_id": 0}))
-    return diagnoses
+    valid = [
+        {
+            **d,
+            "stunting_status": str(d["stunting_status"]),
+            "wasting_status": str(d["wasting_status"])
+        }
+        for d in diagnoses
+        if all(k in d for k in ["measurement_id", "stunting_status", "wasting_status"])
+    ]
+    return valid
 
 @app.get("/mongo/diagnosis/{measurement_id}", response_model=Diagnosis)
 def get_diagnosis(measurement_id: int):

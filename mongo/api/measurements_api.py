@@ -29,7 +29,12 @@ def create_measurement(measurement: Measurement):
 @app.get("/mongo/measurements/", response_model=List[Measurement])
 def get_measurements():
     measurements = list(db.measurements.find({}, {"_id": 0}))
-    return measurements
+    # Only return documents with all required fields
+    valid = [
+        m for m in measurements
+        if all(k in m for k in ["measurement_id", "child_id", "age_months", "body_length_cm", "body_weight_kg", "measurement_date"])
+    ]
+    return valid
 
 @app.get("/mongo/measurements/{measurement_id}", response_model=Measurement)
 def get_measurement(measurement_id: int):
