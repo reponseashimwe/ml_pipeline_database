@@ -1,64 +1,53 @@
-# MongoDB Schema
+# MongoDB Schema (Aligned with ERD)
 
 ## Collections
 
 ### 1. children
 ```json
 {
-  "_id": "ObjectId",
-  "child_id": "string",      
-  "name": "string",
+  "child_id": "string",                
   "gender": "string",
-  "date_of_birth": "YYYY-MM-DD"
+  "current_stunting_status": "string",
+  "current_wasting_status": "string"
 }
 ```
-| Field         | Type     | Description                |
-|---------------|----------|----------------------------|
-| _id           | ObjectId | MongoDB unique identifier  |
-| child_id      | String   | Unique child ID            |
-| name          | String   | Child's name               |
-| gender        | String   | Gender                     |
-| date_of_birth | String   | Date of birth (YYYY-MM-DD) |
-| ...           | ...      | Additional fields as needed|
+| Field                   | Type   | Description                      |
+|-------------------------|--------|----------------------------------|
+| child_id                | String | Unique child ID (PK)             |
+| gender                  | String | Gender                           |
+| current_stunting_status | String | Current stunting status          |
+| current_wasting_status  | String | Current wasting status           |
 
-### 2. diagnosis
+### 2. measurements
 ```json
 {
-  "_id": "ObjectId",
-  "diagnosis_id": "string",  
-  "child_id": "string",         
-  "diagnosis_date": "YYYY-MM-DD",
-  "diagnosis_type": "string",
-  "result": "string"
+  "measurement_id": 1,                  
+  "child_id": "string",               
+  "age_months": 24,
+  "body_length_cm": 85.5,
+  "body_weight_kg": 12.3,
+  "measurement_date": "2023-01-10"
 }
 ```
-| Field          | Type     | Description                        |
-|----------------|----------|------------------------------------|
-| _id            | ObjectId | MongoDB unique identifier          |
-| diagnosis_id   | String   | Unique diagnosis ID                |
-| child_id       | String   | Reference to children.child_id     |
-| diagnosis_date | String   | Date of diagnosis (YYYY-MM-DD)     |
-| diagnosis_type | String   | Type of diagnosis                  |
-| result         | String   | Diagnosis result                   |
-| ...            | ...      | Additional fields as needed        |
+| Field            | Type    | Description                              |
+|------------------|---------|------------------------------------------|
+| measurement_id   | Integer | Unique measurement ID (PK)               |
+| child_id         | String  | Reference to children.child_id (FK)      |
+| age_months       | Integer | Age in months                            |
+| body_length_cm   | Float   | Body length in centimeters               |
+| body_weight_kg   | Float   | Body weight in kilograms                 |
+| measurement_date | String  | Date of measurement (YYYY-MM-DD)         |
 
-### 3. measurements
+### 3. diagnosis
 ```json
 {
-  "_id": "ObjectId",
-  "measurement_id": "string", 
-  "child_id": "string",         
-  "measurement_date": "YYYY-MM-DD",
-  "height_cm": 100.5,
-  "weight_kg": 15.2
+  "measurement_id": 1,                  
+  "stunting_status": "string",
+  "wasting_status": "string"
 }
 ```
-| Field            | Type     | Description                        |
-|------------------|----------|------------------------------------|
-| _id              | ObjectId | MongoDB unique identifier          |
-| measurement_id   | String   | Unique measurement ID              |
-| child_id         | String   | Reference to children.child_id     |
-| measurement_date | String   | Date of measurement (YYYY-MM-DD)   |
-| height_cm        | Number   | Height in centimeters              |
-| weight_kg        | Number   | Weight in kilograms                |
-| ...              | ...      | Additional fields as needed        |
+| Field           | Type    | Description                                  |
+|-----------------|---------|----------------------------------------------|
+| measurement_id  | Integer | Reference to measurements.measurement_id (PK, FK) |
+| stunting_status | String  | Stunting status                              |
+| wasting_status  | String  | Wasting status                               |
