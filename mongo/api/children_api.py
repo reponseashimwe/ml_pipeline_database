@@ -10,6 +10,21 @@ MONGO_URI = "mongodb+srv://rntabana:Renep123@ml-cluster.huuj3ty.mongodb.net/?ret
 client = MongoClient(MONGO_URI)
 db = client["Ml_Foramtive"]
 
+# Convert integer status fields to strings
+for doc in db.children.find():
+    update = {}
+    if isinstance(doc.get("current_stunting_status"), int):
+        update["current_stunting_status"] = str(doc["current_stunting_status"])
+    if isinstance(doc.get("current_wasting_status"), int):
+        update["current_wasting_status"] = str(doc["current_wasting_status"])
+    if update:
+        db.children.update_one({"_id": doc["_id"]}, {"$set": update})
+
+# Remove documents missing 'child_id'
+db.children.delete_many({"child_id": {"$exists": False}})
+
+print("Children collection cleaned.")
+
 # Pydantic model for Children
 class Child(BaseModel):
     child_id: str
@@ -27,7 +42,13 @@ def create_child(child: Child):
 @app.get("/mongo/children/", response_model=List[Child])
 def get_children():
     children = list(db.children.find({}, {"_id": 0}))
-    return children
+    valid = [
+        c for c in children
+        if "child_id" in c and
+           isinstance(c.get("current_stunting_status"), str) and
+           isinstance(c.get("current_wasting_status"), str)
+    ]
+    return valid
 
 @app.get("/mongo/children/{child_id}", response_model=Child)
 def get_child(child_id: str):
