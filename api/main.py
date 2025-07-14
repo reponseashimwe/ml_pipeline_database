@@ -7,6 +7,7 @@ import schemas
 from database import get_db, init_db
 from datetime import date, datetime
 import os
+from sqlalchemy import desc
 
 app = FastAPI(
     title="Child Malnutrition Analysis API",
@@ -217,6 +218,26 @@ def get_latest_diagnosis(db: Session = Depends(get_db)):
             gender=measurement.child.gender
         )
         
+        # Check if diagnosis already exists
+        existing_diagnosis = db.query(models.Diagnosis).filter(models.Diagnosis.measurement_id == measurement.measurement_id).first()
+        if not existing_diagnosis:
+            # Save diagnosis to database
+            db_diagnosis = models.Diagnosis(
+                measurement_id=measurement.measurement_id,
+                stunting_status=diagnosis["stunting_status"],
+                wasting_status="Normal weight",  # Default value since ML model only predicts stunting
+                diagnosis_date=date.today()
+            )
+            db.add(db_diagnosis)
+            
+            # Update child's current status
+            child = db.query(models.Children).filter(models.Children.child_id == measurement.child_id).first()
+            if child:
+                child.current_stunting_status = diagnosis["stunting_status"]
+                child.current_wasting_status = "Normal weight"  # Default value
+            
+            db.commit()
+        
         # Add measurement info
         diagnosis["measurement_id"] = measurement.measurement_id
         diagnosis["child_id"] = measurement.child_id
@@ -258,6 +279,32 @@ def get_child_latest_diagnosis(
             gender=measurement.child.gender
         )
         
+        # Check if diagnosis already exists
+        existing_diagnosis = db.query(models.Diagnosis).filter(models.Diagnosis.measurement_id == measurement.measurement_id).first()
+        if not existing_diagnosis:
+            # Save diagnosis to database
+            db_diagnosis = models.Diagnosis(
+                measurement_id=measurement.measurement_id,
+                stunting_status=diagnosis["stunting_status"],
+                wasting_status="Normal weight",  # Default value since ML model only predicts stunting
+                diagnosis_date=date.today()
+            )
+            db.add(db_diagnosis)
+            
+            # Update child's current status if this is the latest measurement
+            latest_measurement = db.query(models.Measurements)\
+                .filter(models.Measurements.child_id == measurement.child_id)\
+                .order_by(desc(models.Measurements.created_at))\
+                .first()
+            
+            if latest_measurement and latest_measurement.measurement_id == measurement.measurement_id:
+                child = db.query(models.Children).filter(models.Children.child_id == measurement.child_id).first()
+                if child:
+                    child.current_stunting_status = diagnosis["stunting_status"]
+                    child.current_wasting_status = "Normal weight"  # Default value
+            
+            db.commit()
+        
         # Add measurement info
         diagnosis["measurement_id"] = measurement.measurement_id
         diagnosis["child_id"] = measurement.child_id
@@ -290,6 +337,32 @@ def get_measurement_diagnosis(
             body_weight_kg=measurement.body_weight_kg,
             gender=measurement.child.gender
         )
+        
+        # Check if diagnosis already exists
+        existing_diagnosis = db.query(models.Diagnosis).filter(models.Diagnosis.measurement_id == measurement.measurement_id).first()
+        if not existing_diagnosis:
+            # Save diagnosis to database
+            db_diagnosis = models.Diagnosis(
+                measurement_id=measurement.measurement_id,
+                stunting_status=diagnosis["stunting_status"],
+                wasting_status="Normal weight",  # Default value since ML model only predicts stunting
+                diagnosis_date=date.today()
+            )
+            db.add(db_diagnosis)
+            
+            # Update child's current status if this is the latest measurement
+            latest_measurement = db.query(models.Measurements)\
+                .filter(models.Measurements.child_id == measurement.child_id)\
+                .order_by(desc(models.Measurements.created_at))\
+                .first()
+            
+            if latest_measurement and latest_measurement.measurement_id == measurement_id:
+                child = db.query(models.Children).filter(models.Children.child_id == measurement.child_id).first()
+                if child:
+                    child.current_stunting_status = diagnosis["stunting_status"]
+                    child.current_wasting_status = "Normal weight"  # Default value
+            
+            db.commit()
         
         # Add measurement info
         diagnosis["measurement_id"] = measurement.measurement_id

@@ -54,7 +54,8 @@ def create_preprocessor():
 
 def predict_stunting_status(age_months: int, body_length_cm: float, body_weight_kg: float, gender: str, model=None):
     """
-    Predict stunting status using the trained model
+    Predict stunting status using the trained model.
+    Returns one of: 'Normal', 'Stunted', 'Severely Stunted', or 'Tall'
     """
     try:
         # Load model if not provided
@@ -77,6 +78,12 @@ def predict_stunting_status(age_months: int, body_length_cm: float, body_weight_
 
         # Make prediction
         prediction = model.predict(X)[0]
+        
+        # Validate prediction is one of the expected classes
+        valid_classes = ['Normal', 'Stunted', 'Severely Stunted', 'Tall']
+        if prediction not in valid_classes:
+            raise ValueError(f"Model predicted invalid class: {prediction}")
+            
         return prediction
 
     except Exception as e:
