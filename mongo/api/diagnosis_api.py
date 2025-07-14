@@ -2,11 +2,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
 from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
 # MongoDB connection
-MONGO_URI = "mongodb+srv://rntabana:Renep123@ml-cluster.huuj3ty.mongodb.net/?retryWrites=true&w=majority&appName=ML-Cluster"
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["Ml_Foramtive"]
 

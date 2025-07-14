@@ -1,6 +1,10 @@
 from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
 
-MONGO_URI = "mongodb+srv://rntabana:Renep123@ml-cluster.huuj3ty.mongodb.net/?retryWrites=true&w=majority&appName=ML-Cluster"
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["Ml_Foramtive"]
 
